@@ -14,11 +14,11 @@
 [![Docs](https://img.shields.io/badge/docs-befailproof.ai-002CA7?style=flat-square)](https://docs.befailproof.ai)
 [![License](https://img.shields.io/badge/license-MIT%20%2B%20Commons%20Clause-blue?style=flat-square)](./LICENSE)
 
-**翻訳:** [简体中文](./docs/i18n/README.zh.md) · [日本語](./docs/i18n/README.ja.md) · [한국어](./docs/i18n/README.ko.md) · [Español](./docs/i18n/README.es.md) · [Português](./docs/i18n/README.pt-br.md) · [Deutsch](./docs/i18n/README.de.md) · [Français](./docs/i18n/README.fr.md) · [Русский](./docs/i18n/README.ru.md) · [हिन्दी](./docs/i18n/README.hi.md) · [Türkçe](./docs/i18n/README.tr.md) · [Tiếng Việt](./docs/i18n/README.vi.md) · [Italiano](./docs/i18n/README.it.md) · [العربية](./docs/i18n/README.ar.md) · [עברית](./docs/i18n/README.he.md)
+**翻訳：** [简体中文](./docs/i18n/README.zh.md) · [日本語](./docs/i18n/README.ja.md) · [한국어](./docs/i18n/README.ko.md) · [Español](./docs/i18n/README.es.md) · [Português](./docs/i18n/README.pt-br.md) · [Deutsch](./docs/i18n/README.de.md) · [Français](./docs/i18n/README.fr.md) · [Русский](./docs/i18n/README.ru.md) · [हिन्दी](./docs/i18n/README.hi.md) · [Türkçe](./docs/i18n/README.tr.md) · [Tiếng Việt](./docs/i18n/README.vi.md) · [Italiano](./docs/i18n/README.it.md) · [العربية](./docs/i18n/README.ar.md) · [עברית](./docs/i18n/README.he.md)
 
-**コーディングエージェントのランタイム障害解決ツール。**
-Claude Code や Codex にフックし、ループ・危険な操作・シークレット漏洩を
-インシデントになる前に検出します。レイテンシゼロ。ローカル実行。
+**コーディングエージェントのランタイム障害を解決する。**
+Claude Code や Codex にフックし、ループ・危険な操作・シークレットの漏洩を
+インシデントになる前に検知します。レイテンシーゼロ。ローカル実行。
 
 </div>
 
@@ -79,7 +79,7 @@ Claude Code や Codex にフックし、ループ・危険な操作・シーク�
   </a>
 </p>
 
-> 1つまたは任意の組み合わせにフックをインストールできます: `failproofai policies --install --cli opencode pi gemini`（または `--cli claude codex copilot cursor opencode pi gemini`）。`--cli` を省略すると、インストール済みの CLI を自動検出してプロンプトを表示します。**GitHub Copilot CLI・Cursor Agent・OpenCode・Pi・Gemini CLI のサポートはベータ版です — テストを継続中。**
+> 1つまたは任意の組み合わせでフックをインストールできます：`failproofai policies --install --cli opencode pi gemini`（または `--cli claude codex copilot cursor opencode pi gemini`）。`--cli` を省略すると、インストール済みの CLI を自動検出してプロンプトを表示します。
 
 ---
 
@@ -91,13 +91,13 @@ failproofai policies --install
 failproofai
 ```
 
-30件の組み込みポリシーがすぐに有効になります。ダッシュボードは `localhost:8020` で確認できます。
+30件の組み込みポリシーが即座に有効になります。ダッシュボードは `localhost:8020` で確認できます。
 
 ---
 
 ## 防止できること
 
-| ポリシー | ブロック内容 |
+| ポリシー | ブロックする操作 |
 |---|---|
 | `block-push-master` | `main` / `master` への直接プッシュ |
 | `block-force-push` | `git push --force` |
@@ -105,14 +105,14 @@ failproofai
 | `block-rm-rf` | ファイルの再帰的削除 |
 | `sanitize-api-keys` | エージェントコンテキストへの API キー漏洩 |
 
-→ [組み込みポリシー全30件](https://docs.befailproof.ai/built-in-policies)
+→ [組み込みポリシー 30件すべて](https://docs.befailproof.ai/built-in-policies)
 
 ---
 
 ## 独自ポリシーの作成
 
-`.failproofai/policies/` にファイルを置くだけで自動的に読み込まれます — フラグ不要。
-コミットすれば、次回プル時にチーム全員に適用されます。
+`.failproofai/policies/` にファイルを置くだけで自動的に読み込まれます。フラグは不要です。
+コミットすれば、次回の pull でチーム全員に反映されます。
 
 ```js
 import { customPolicies, deny, allow } from "failproofai";
@@ -128,13 +128,13 @@ customPolicies.add({
 });
 ```
 
-すべてのポリシーで使用できる3つの判定:
+各ポリシーで使える判定は3種類：
 
-| 判定 | 動作 |
+| 判定 | 効果 |
 |---|---|
 | `allow()` | 操作を許可する |
-| `deny(message)` | ブロックする — メッセージがエージェントに返される |
-| `instruct(message)` | 通過させるが、エージェントの次のプロンプトにコンテキストを追加する |
+| `deny(message)` | ブロックする — メッセージはエージェントに返される |
+| `instruct(message)` | 通過させつつ、エージェントの次のプロンプトにコンテキストを追加する |
 
 → [カスタムポリシーガイド](https://docs.befailproof.ai/custom-policies)
 
@@ -142,7 +142,7 @@ customPolicies.add({
 
 ## セッションの可視化
 
-エージェントが行ったすべてのツール呼び出しはローカルに記録されます。ダッシュボードでは実行内容・ブロックされた内容・ポリシーがエージェントに伝えた内容を確認できます — 問題が発生したときに推測で対処する必要はありません。→ [ダッシュボードガイド](https://docs.befailproof.ai/dashboard)
+エージェントが行ったすべてのツール呼び出しはローカルに記録されます。ダッシュボードでは、実行された内容・ブロックされた内容・ポリシーがエージェントに伝えた内容を確認できるため、問題が発生しても推測に頼る必要がありません。→ [ダッシュボードガイド](https://docs.befailproof.ai/dashboard)
 
 ---
 
@@ -151,8 +151,8 @@ customPolicies.add({
 | | |
 |---|---|
 | [はじめに](https://docs.befailproof.ai/getting-started) | インストールと最初のステップ |
-| [組み込みポリシー](https://docs.befailproof.ai/built-in-policies) | パラメータ付き全30ポリシー |
-| [カスタムポリシー](https://docs.befailproof.ai/custom-policies) | 独自ポリシーの作成 |
+| [組み込みポリシー](https://docs.befailproof.ai/built-in-policies) | パラメータ付き 30件すべてのポリシー |
+| [カスタムポリシー](https://docs.befailproof.ai/custom-policies) | 独自ポリシーの作成方法 |
 | [設定](https://docs.befailproof.ai/configuration) | 設定スコープとマージルール |
 | [ダッシュボード](https://docs.befailproof.ai/dashboard) | セッションモニターとポリシーアクティビティ |
 | [アーキテクチャ](https://docs.befailproof.ai/architecture) | フックシステムの仕組み |
@@ -161,15 +161,15 @@ customPolicies.add({
 
 ## ライセンス
 
-MIT に [Commons Clause](https://commonsclause.com/) を付加 — 社内利用および個人利用は無償。failproofai 自体の商用再販には別途契約が必要です。全文は [LICENSE](./LICENSE) をご覧ください。
+[Commons Clause](https://commonsclause.com/) 付き MIT — 社内利用・個人利用は無料。failproofai 自体の商業的再販には別途契約が必要です。全文は [LICENSE](./LICENSE) をご覧ください。
 
 ---
 
 ## コントリビューション
 
-[CONTRIBUTING.md](./CONTRIBUTING.md) をご参照ください。新しいポリシー・エッジケース・翻訳はいずれも歓迎します。
+[CONTRIBUTING.md](./CONTRIBUTING.md) をご参照ください。新しいポリシー、エッジケースの対応、翻訳はいずれも歓迎します。
 
 ---
 
-[Nivedit Jain](https://github.com/NiveditJain) と [Nikita Agarwal](https://github.com/nk-ag) が開発。
+[Nivedit Jain](https://github.com/NiveditJain) と [Nikita Agarwal](https://github.com/nk-ag) によって開発されました。
 [befailproof.ai](https://befailproof.ai)

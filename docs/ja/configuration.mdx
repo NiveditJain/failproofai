@@ -1,38 +1,38 @@
 ---
 title: 設定
-description: "設定ファイルのフォーマット、3段階スコープシステム、マージルール"
+description: "設定ファイルの形式、3つのスコープシステム、マージルール"
 icon: gear
 ---
 
-failproofai は JSON 設定ファイルを使用して、有効にするポリシー、その動作、カスタムポリシーの読み込み元を制御します。設定はチームと共有しやすい設計になっており、リポジトリにコミットするだけで、すべての開発者が同一のエージェント安全網を利用できます。
+failproofai は JSON 設定ファイルを使用して、有効にするポリシー、その動作、カスタムポリシーの読み込み元を制御します。設定はチームと共有しやすい設計になっており、リポジトリにコミットするだけで、すべての開発者が同じエージェントセーフティネットを利用できます。
 
 ---
 
 ## 設定スコープ
 
-設定スコープは3段階あり、優先度順に評価されます：
+設定スコープは3つあり、優先順位の高い順に評価されます：
 
 | スコープ | ファイルパス | 用途 |
-|-------|-----------|---------|
+|---------|------------|------|
 | **project** | `.failproofai/policies-config.json` | リポジトリごとの設定。バージョン管理にコミット |
-| **local** | `.failproofai/policies-config.local.json` | 個人用のリポジトリごとの上書き設定。gitignore 対象 |
-| **global** | `~/.failproofai/policies-config.json` | 全プロジェクト共通のユーザーレベルのデフォルト |
+| **local** | `.failproofai/policies-config.local.json` | 個人用のリポジトリごとのオーバーライド。gitignore 対象 |
+| **global** | `~/.failproofai/policies-config.json` | 全プロジェクト共通のユーザーレベルのデフォルト値 |
 
 failproofai がフックイベントを受け取ると、現在の作業ディレクトリに存在する3つのファイルをすべて読み込んでマージします。
 
 ### マージルール
 
-**`enabledPolicies`** — 3つのスコープすべての和集合。いずれかのレベルで有効化されたポリシーはアクティブになります。
+**`enabledPolicies`** — 3つのスコープすべての和集合。いずれかのレベルで有効になっているポリシーはアクティブになります。
 
 ```text
 project:  ["block-sudo"]
 local:    ["block-rm-rf"]
 global:   ["block-sudo", "sanitize-api-keys"]
 
-resolved: ["block-sudo", "block-rm-rf", "sanitize-api-keys"]  ← 重複排除した和集合
+resolved: ["block-sudo", "block-rm-rf", "sanitize-api-keys"]  ← 重複排除された和集合
 ```
 
-**`policyParams`** — 特定のポリシーのパラメーターを定義した最初のスコープが完全に優先されます。ポリシー内のパラメーター値はディープマージされません。
+**`policyParams`** — 特定のポリシーのパラメーターを最初に定義したスコープが完全に優先されます。ポリシーのパラメーター内での値のディープマージは行われません。
 
 ```text
 project:  block-sudo → { allowPatterns: ["sudo apt-get update"] }
@@ -42,20 +42,20 @@ resolved: { allowPatterns: ["sudo apt-get update"] }   ← project が優先、g
 ```
 
 ```text
-project:  （block-sudo エントリなし）
-local:    （block-sudo エントリなし）
+project:  (block-sudo のエントリなし)
+local:    (block-sudo のエントリなし)
 global:   block-sudo → { allowPatterns: ["sudo systemctl status"] }
 
 resolved: { allowPatterns: ["sudo systemctl status"] }  ← global にフォールスルー
 ```
 
-**`customPoliciesPath`** — 定義した最初のスコープが優先されます。
+**`customPoliciesPath`** — 最初に定義したスコープが優先されます。
 
-**`llm`** — 定義した最初のスコープが優先されます。
+**`llm`** — 最初に定義したスコープが優先されます。
 
 ---
 
-## 設定ファイルのフォーマット
+## 設定ファイルの形式
 
 ```json
 {
@@ -102,27 +102,27 @@ resolved: { allowPatterns: ["sudo systemctl status"] }  ← global にフォー�
 
 型：`string[]`
 
-有効にするポリシー名のリスト。名前は `failproofai policies` が表示するポリシー識別子と完全に一致している必要があります。全リストは[組み込みポリシー](/ja/built-in-policies)を参照してください。
+有効にするポリシー名のリスト。名前は `failproofai policies` で表示されるポリシー識別子と完全に一致する必要があります。完全なリストは [Built-in Policies](/ja/built-in-policies) を参照してください。
 
-`enabledPolicies` に含まれていないポリシーは、`policyParams` にエントリがあっても無効です。
+`enabledPolicies` に含まれていないポリシーは、`policyParams` にエントリがあっても無効になります。
 
 ### `policyParams`
 
 型：`Record<string, Record<string, unknown>>`
 
-ポリシーごとのパラメーター上書き設定。外側のキーはポリシー名、内側のキーはポリシー固有です。各ポリシーで利用可能なパラメーターは[組み込みポリシー](/ja/built-in-policies)に記載されています。
+ポリシーごとのパラメーターオーバーライド。外側のキーはポリシー名、内側のキーはポリシー固有のものです。各ポリシーで利用可能なパラメーターは [Built-in Policies](/ja/built-in-policies) に記載されています。
 
-パラメーターを持つポリシーで指定がない場合は、ポリシー組み込みのデフォルト値が使用されます。`policyParams` を一切設定していないユーザーは、以前のバージョンと同じ動作になります。
+ポリシーにパラメーターがあっても指定しない場合は、ポリシーの組み込みデフォルト値が使用されます。`policyParams` をまったく設定しないユーザーは、以前のバージョンと同じ動作になります。
 
-ポリシーのパラメーターブロック内の未知のキーは、フック発火時には無視されますが、`failproofai policies` 実行時に警告として表示されます。
+ポリシーのパラメーターブロック内の未知のキーは、フック実行時には無視されますが、`failproofai policies` を実行すると警告としてフラグが立てられます。
 
 #### `hint`（横断的設定）
 
-型：`string`（任意）
+型：`string`（省略可能）
 
-ポリシーが `deny` または `instruct` を返したときに、その理由に追記されるメッセージです。ポリシー自体を変更せずに Claude へ具体的な指示を伝えるために使用します。
+ポリシーが `deny` または `instruct` を返したときに、その理由に追加されるメッセージです。ポリシー自体を変更せずに Claude に実行可能なガイダンスを提供するために使用します。
 
-組み込み、カスタム（`custom/`）、プロジェクト規約（`.failproofai-project/`）、ユーザー規約（`.failproofai-user/`）など、すべてのポリシータイプで使用できます。
+組み込みポリシー、カスタムポリシー（`custom/`）、プロジェクト規約（`.failproofai-project/`）、ユーザー規約（`.failproofai-user/`）など、あらゆるポリシータイプで使用できます。
 
 ```json
 {
@@ -141,38 +141,38 @@ resolved: { allowPatterns: ["sudo systemctl status"] }  ← global にフォー�
 }
 ```
 
-`block-force-push` が拒否した場合、Claude には次のように表示されます：*"Force-pushing is blocked. Try creating a fresh branch instead."*
+`block-force-push` が拒否した場合、Claude には次のように表示されます：*「Force-pushing is blocked. Try creating a fresh branch instead.」*
 
-文字列以外の値や空文字列は無視されます。`hint` が設定されていない場合は従来どおりの動作です（後方互換性あり）。
+文字列以外の値や空文字列は無視されます。`hint` が設定されていない場合、動作は変わりません（後方互換性あり）。
 
 ### `customPoliciesPath`
 
 型：`string`（絶対パス）
 
-カスタムフックポリシーを含む JavaScript ファイルへのパス。`failproofai policies --install --custom <path>` によって自動的に設定されます（パスは保存前に絶対パスに解決されます）。
+カスタムフックポリシーを含む JavaScript ファイルへのパス。`failproofai policies --install --custom <path>` を実行すると自動的に設定されます（パスは保存前に絶対パスに解決されます）。
 
-このファイルはフックイベントのたびに新しく読み込まれます。キャッシュはありません。作成方法の詳細は[カスタムポリシー](/ja/custom-policies)を参照してください。
+このファイルはフックイベントのたびに新たに読み込まれます。キャッシュは行われません。作成方法の詳細は [Custom Policies](/ja/custom-policies) を参照してください。
 
 ### 規約ベースのポリシー
 
 明示的な `customPoliciesPath` に加え、failproofai は `.failproofai/policies/` ディレクトリからポリシーファイルを自動的に検出して読み込みます：
 
 | レベル | ディレクトリ | スコープ |
-|-------|-----------|-------|
-| プロジェクト | `.failproofai/policies/` | バージョン管理経由でチームと共有 |
+|-------|------------|---------|
+| プロジェクト | `.failproofai/policies/` | バージョン管理でチームと共有 |
 | ユーザー | `~/.failproofai/policies/` | 個人用。全プロジェクトに適用 |
 
-**ファイルマッチング：** `*policies.{js,mjs,ts}` に一致するファイルのみ読み込まれます（例：`security-policies.mjs`、`workflow-policies.js`）。それ以外のファイルは無視されます。
+**ファイルのマッチング：** `*policies.{js,mjs,ts}` に一致するファイルのみが読み込まれます（例：`security-policies.mjs`、`workflow-policies.js`）。ディレクトリ内のその他のファイルは無視されます。
 
-**設定不要：** 規約ポリシーは `policies-config.json` へのエントリ不要です。ディレクトリにファイルを置くだけで、次のフックイベント時に自動的に読み込まれます。
+**設定不要：** 規約ポリシーは `policies-config.json` へのエントリを必要としません。ディレクトリにファイルを配置するだけで、次のフックイベント時に自動的に読み込まれます。
 
-**統合読み込み：** プロジェクトとユーザー両方の規約ディレクトリがスキャンされます。両レベルのすべてのマッチファイルが読み込まれます（最初のスコープ優先の `customPoliciesPath` とは異なります）。
+**ユニオン読み込み：** プロジェクトとユーザー両方の規約ディレクトリがスキャンされます。両方のレベルからすべての一致するファイルが読み込まれます（`customPoliciesPath` の先着スコープ優先とは異なります）。
 
-詳細と例は[カスタムポリシー](/ja/custom-policies)を参照してください。
+詳細と例については [Custom Policies](/ja/custom-policies) を参照してください。
 
 ### `llm`
 
-型：`object`（任意）
+型：`object`（省略可能）
 
 AI 呼び出しを行うポリシー向けの LLM クライアント設定。ほとんどの環境では不要です。
 
@@ -189,19 +189,19 @@ AI 呼び出しを行うポリシー向けの LLM クライアント設定。ほ
 
 ## CLI からの設定管理
 
-`policies --install` および `policies --uninstall` コマンドはエージェント CLI のフック設定ファイル（フックエントリポイント）に書き込みます。一方、`policies-config.json` は直接管理するファイルです。この2つは別物です：
+`policies --install` および `policies --uninstall` コマンドはエージェント CLI のフック設定ファイル（フックエントリーポイント）に書き込みますが、`policies-config.json` は直接管理するファイルです。この2つは別物です：
 
-- **エージェント CLI 設定** — ツール使用のたびに `failproofai --hook <event>` を呼び出すようエージェントに指示します：
+- **エージェント CLI の設定** — ツール使用のたびにエージェントが `failproofai --hook <event>` を呼び出すよう指示します：
   - **Claude Code**：`~/.claude/settings.json`（ユーザー）、`<cwd>/.claude/settings.json`（プロジェクト）、`<cwd>/.claude/settings.local.json`（ローカル）
   - **OpenAI Codex**：`~/.codex/hooks.json`（ユーザー）、`<cwd>/.codex/hooks.json`（プロジェクト） — Codex には `local` スコープがありません
-  - **GitHub Copilot CLI _(beta)_**：`~/.copilot/hooks/failproofai.json`（ユーザー）、`<cwd>/.github/hooks/failproofai.json`（プロジェクト） — Copilot には `local` スコープがありません。フックエントリは Copilot の OS キー付き `bash`/`powershell` コマンドフィールドと `timeoutSec` を使用し、ファイルにはトップレベルの `version: 1` マーカーが含まれます。`events.jsonl` レコードスキーマ（公式ドキュメントに未記載）を実際のセッションでさらに検証中のため、Copilot CLI サポートは**ベータ版**です。
-  - **Cursor Agent _(beta)_**：`~/.cursor/hooks.json`（ユーザー）、`<cwd>/.cursor/hooks.json`（プロジェクト） — Cursor には `local` スコープがありません。フックエントリは Claude 形式の `{type, command, timeout}` を使用しますが、Cursor の[フックスキーマ](https://cursor.com/docs/hooks)に従い、camelCase のイベントキー（`preToolUse`、`beforeSubmitPrompt` など）でフラット配列に格納されます。ファイルにはトップレベルの `version: 1` マーカーが含まれます。ハンドラーは `CURSOR_EVENT_MAP` を使って camelCase → PascalCase に正規化するため、既存の組み込みポリシーはそのまま動作します。Cursor のトランスクリプトのオンディスクフォーマット（公式ドキュメント未記載）を実際のインストールでさらに検証中のため、Cursor Agent サポートは**ベータ版**です。
-  - **OpenCode _(beta)_**：`~/.config/opencode/opencode.json` + `~/.config/opencode/plugins/failproofai.mjs`（ユーザー）、`<cwd>/.opencode/opencode.json` + `<cwd>/.opencode/plugins/failproofai.mjs`（プロジェクト） — OpenCode には `local` スコープがありません。他の6つの CLI と異なり、OpenCode には**外部コマンドフックシステムがありません**。`opencode.json` の `plugin: []` 配列で明示的に登録された JS/TS プラグインをインプロセスで読み込みます（`.opencode/plugins/` からの自動検出は opencode v1.14.33 ではプラグイン読み込み方式**ではありません**）。インストール時に、failproofai バイナリをサブプロセス呼び出しし、バイナリの Claude 形式 JSON レスポンスをプラグインセマンティクスに変換する小さな生成プラグインシムが展開されます。ツールイベントの拒否には `throw new Error()`（ツール呼び出しをキャンセル）、instruct および `Stop` / `SubagentStop` の拒否には `client.session.prompt(...)`（拒否理由を次のユーザーメッセージとして送信。`session.idle` は通知専用でスローは無操作のため、これが唯一のリトライ強制チャネル）、allow には no-op を使用します。セッションは `~/.local/share/opencode/opencode.db` の OpenCode の SQLite DB に保存され、ダッシュボードのセッションビューアーは `opencode db --format json` および `opencode export <id>` で読み込みます。バージョン間および実際のセッションでの動作をさらに検証中のため、OpenCode サポートは**ベータ版**です。詳細は [OpenCode プラグインドキュメント](https://opencode.ai/docs/plugins/)を参照してください。
-  - **Pi _(beta)_**：`~/.pi/agent/settings.json`（ユーザー）、`<cwd>/.pi/settings.json`（プロジェクト） — Pi には `local` スコープがありません。Pi は起動時に TypeScript 拡張パッケージを読み込みます。設定ファイルはフラットな文字列配列 `{"packages": ["./relative/path", …]}` 形式です。failproofai はバンドル済みの `pi-extension/` ディレクトリを指す単一の packages 配列エントリを書き込みます。拡張機能は内部で Pi の `tool_call` / `user_bash` / `input` / `session_start` イベントをサブスクライブし、`failproofai --hook <Event> --cli pi` をシェルアウト呼び出しします。ハンドラーは `PI_EVENT_MAP` を使って underscore_lower_snake_case → PascalCase に正規化するため、既存の組み込みポリシーはそのまま動作します。Pi の拡張 API とセッションログレイアウトが安定するまで、Pi サポートは**ベータ版**です。
-  - **Gemini CLI _(beta)_**：`~/.gemini/settings.json`（ユーザー）、`<cwd>/.gemini/settings.json`（プロジェクト） — Gemini には `local` スコープがありません（`/etc/gemini-cli/settings.json` の `system` スコープはドキュメントに記載されていますが、failproofai は公開していません）。フックエントリは Claude の `{type, command, timeout}` 形式を使用し、デフォルトで `matcher: "*"` の Gemini の `{matcher, hooks: [...]}` マッチャースキーマにラップされます。イベントは PascalCase（`SessionStart`、`BeforeAgent`、`AfterAgent`、`BeforeModel`、`AfterModel`、`BeforeToolSelection`、`BeforeTool`、`AfterTool`、`PreCompress`、`Notification`、`SessionEnd`）で、ハンドラーは `GEMINI_EVENT_MAP` を使って Claude の正規名にマッピングします。ツール名は snake_case（`run_shell_command`、`read_file`、`write_file`、`replace` など）で、ハンドラーは `GEMINI_TOOL_MAP` を使って正規化するため、既存の組み込みポリシーはそのまま動作します。ポリシーエバリュエーターは Gemini のフラットな `{decision: "deny", reason}` 形式（Gemini の「ゴールデンルール」exit-0 契約で推奨）、BeforeAgent / AfterTool / SessionStart でのコンテキスト注入には `{hookSpecificOutput: {hookEventName, additionalContext}}`、AfterAgent でのリトライ強制セマンティクスには `{decision: "block", reason}` を出力します。実際のカバレッジをさらに拡大中のため、Gemini CLI サポートは**ベータ版**です。詳細は [Gemini CLI フックドキュメント](https://geminicli.com/docs/hooks/)を参照してください。
-- **`policies-config.json`** — 評価するポリシーとそのパラメーターを failproofai に指示します（全エージェント CLI 共通）
+  - **GitHub Copilot CLI _(beta)_**：`~/.copilot/hooks/failproofai.json`（ユーザー）、`<cwd>/.github/hooks/failproofai.json`（プロジェクト） — Copilot には `local` スコープがありません。フックエントリーは Copilot の OS キーを使った `bash`/`powershell` コマンドフィールドと `timeoutSec` を使用し、ファイルにはトップレベルの `version: 1` マーカーが付きます。Copilot CLI サポートは、公開ドキュメントに仕様が記載されていない `events.jsonl` レコードスキーマを実際のセッションで検証中のため、**ベータ版**です。
+  - **Cursor Agent _(beta)_**：`~/.cursor/hooks.json`（ユーザー）、`<cwd>/.cursor/hooks.json`（プロジェクト） — Cursor には `local` スコープがありません。フックエントリーは Claude 形式の `{type, command, timeout}` を使用しますが、Cursor の [hooks スキーマ](https://cursor.com/docs/hooks) に従い、フラット配列内の camelCase イベントキー（`preToolUse`、`beforeSubmitPrompt` など）に保存され、ファイルにはトップレベルの `version: 1` マーカーが付きます。ハンドラーは `CURSOR_EVENT_MAP` を介して camelCase → PascalCase に正規化するため、既存の組み込みポリシーはそのまま動作します。Cursor Agent サポートは、公開ドキュメントに記載されていない Cursor のディスク上トランスクリプト形式を実際のインストールで検証中のため、**ベータ版**です。
+  - **OpenCode _(beta)_**：`~/.config/opencode/opencode.json` + `~/.config/opencode/plugins/failproofai.mjs`（ユーザー）、`<cwd>/.opencode/opencode.json` + `<cwd>/.opencode/plugins/failproofai.mjs`（プロジェクト） — OpenCode には `local` スコープがありません。他の6つの CLI とは異なり、OpenCode には**外部コマンドのフックシステムがありません**：`opencode.json` の `plugin: []` 配列に明示的に登録された JS/TS プラグインをインプロセスで読み込みます（`.opencode/plugins/` からの自動検出は opencode v1.14.33 でのプラグイン読み込み方法では**ありません**）。インストール時に小さな生成済みプラグインシムを配置し、failproofai バイナリをサブプロセス呼び出しして、バイナリの Claude 形式 JSON レスポンスをプラグインのセマンティクスに変換します：ツールイベントの deny には `throw new Error()`（ツール呼び出しをキャンセル）、instruct および `Stop` / `SubagentStop` の deny には `client.session.prompt(...)`（deny の理由を次のユーザーメッセージとして送信 — `session.idle` は通知専用でスローは no-op のため、強制リトライの唯一のチャンネル）、allow には no-op。シムはツール名（小文字 → PascalCase、`OPENCODE_TOOL_MAP` 経由）とツール入力引数キー（camelCase → snake_case、`OPENCODE_TOOL_INPUT_MAP` 経由（`Read` / `Write` / `Edit` 対象、例：`filePath` → `file_path`、`oldString` → `old_string`））をバイナリに転送する前に正規化するため、`block-read-outside-cwd`、`block-env-files`、`block-secrets-write` などのパスチェック組み込みポリシーは OpenCode のツール呼び出しでもそのまま動作します。セッションは `~/.local/share/opencode/opencode.db` の OpenCode の SQLite DB に保存され、ダッシュボードのセッションビューアーは `opencode db --format json` と `opencode export <id>` を介して読み取ります。OpenCode サポートは、バージョン間の動作と実際のセッションの検証中のため、**ベータ版**です。[OpenCode plugins ドキュメント](https://opencode.ai/docs/plugins/)を参照してください。
+  - **Pi _(beta)_**：`~/.pi/agent/settings.json`（ユーザー）、`<cwd>/.pi/settings.json`（プロジェクト） — Pi には `local` スコープがありません。Pi は起動時に TypeScript 拡張パッケージを読み込みます。設定ファイルはフラットな文字列配列 `{"packages": ["./relative/path", …]}` です。failproofai はバンドルされた `pi-extension/` ディレクトリを指す単一の packages 配列エントリーを書き込みます。拡張機能は内部的に Pi の `tool_call` / `user_bash` / `input` / `session_start` イベントをサブスクライブし、`failproofai --hook <Event> --cli pi` をシェルアウト呼び出しします。ハンドラーは `PI_EVENT_MAP` を介して underscore_lower_snake_case → PascalCase に正規化するため、既存の組み込みポリシーはそのまま動作します。ツール入力引数も `PI_TOOL_INPUT_MAP` 経由で正規化されます（Pi の Read / Write / Edit は `file_path` ではなく `path` を渡します。トップレベルキーのマッピングにより `block-env-files` と `block-secrets-write` が動作します — `block-read-outside-cwd` にはすでに `path` フォールバックがありました）。Pi サポートは、Pi の拡張 API とセッションログのレイアウトが安定するまで**ベータ版**です。
+  - **Gemini CLI _(beta)_**：`~/.gemini/settings.json`（ユーザー）、`<cwd>/.gemini/settings.json`（プロジェクト） — Gemini には `local` スコープがありません（failproofai が公開していない `/etc/gemini-cli/settings.json` の `system` スコープがドキュメントに記載されています）。フックエントリーは Claude の `{type, command, timeout}` 形式を Gemini の `{matcher, hooks: [...]}` マッチャースキーマでラップし、デフォルトで `matcher: "*"` を使用します。イベントは PascalCase（`SessionStart`、`BeforeAgent`、`AfterAgent`、`BeforeModel`、`AfterModel`、`BeforeToolSelection`、`BeforeTool`、`AfterTool`、`PreCompress`、`Notification`、`SessionEnd`）で、ハンドラーは `GEMINI_EVENT_MAP` を介して Claude の正規名にマッピングします。ツール名は snake_case（`run_shell_command`、`read_file`、`write_file`、`replace` など）で、ハンドラーは `GEMINI_TOOL_MAP` を介して正規化するため、既存の組み込みポリシーはそのまま動作します。ポリシーエバリュエーターは Gemini のフラットな `{decision: "deny", reason}` 形式（Gemini の「Golden Rule」exit-0 コントラクトに従い推奨）、BeforeAgent / AfterTool / SessionStart のコンテキスト注入には `{hookSpecificOutput: {hookEventName, additionalContext}}`、AfterAgent の強制リトライには `{decision: "block", reason}` を出力します。Gemini CLI サポートは、実世界のカバレッジを拡大しながら**ベータ版**です。[Gemini CLI hooks ドキュメント](https://geminicli.com/docs/hooks/)を参照してください。
+- **`policies-config.json`** — failproofai が評価するポリシーとそのパラメーターを指定します（すべてのエージェント CLI で共通）
 
-特定のエージェントを対象にするには `--cli claude|codex|copilot|cursor|opencode|pi|gemini` を渡します（スペース区切りまたは繰り返し指定で複数選択可）：
+特定のエージェントを対象にするには `--cli claude|codex|copilot|cursor|opencode|pi|gemini` を渡します（スペース区切りまたは繰り返しで任意のサブセットを指定）：
 
 ```bash
 failproofai policies --install --cli codex --scope project
@@ -216,15 +216,15 @@ failproofai policies --install --cli claude codex copilot cursor opencode pi gem
 `--cli` を省略した場合、`failproofai` はインストール済みのエージェント CLI を自動検出します（`which claude` / `which codex` / `which copilot` / `which cursor-agent` / `which opencode` / `which pi` / `which gemini`）：
 
 - **1つの CLI を検出** — プロンプトなしでその CLI を自動選択します。
-- **複数の CLI を検出（インタラクティブターミナル）** — 矢印キーで操作する単一選択プロンプトを表示します。`Detected (N)` セクション（`Install for all N detected` の一括行と各検出 CLI の個別行）と、`Not installed (M) · install hooks ahead of time` セクション（未検出のサポート済み CLI を事前インストールオプションとして一覧表示）に分類されます（↑↓で移動、Enter で選択、^C で終了）。アンインストールフローでは Detected セクションのみ表示されます。
-- **複数の CLI を検出（非インタラクティブ実行、CI・TTY なし）** — プロンプトなしで検出されたすべての CLI にインストールします。
-- **未検出** — `claude` にフォールバックし、PATH にエージェントバイナリが見つからない旨の警告を表示します。フックコマンドは書き込まれるため、インストール後すぐに有効になります。
+- **インタラクティブなターミナルで複数の CLI を検出** — 矢印キーで操作する単一選択プロンプトを表示します。`Detected (N)` セクション（`Install for all N detected` の集約行と検出された各 CLI が個別に表示）と、`Not installed (M) · install hooks ahead of time` セクション（未検出のサポート済み CLI が事前インストールオプションとして表示）に分かれています（↑↓ で移動、Enter で選択、^C で終了）。アンインストールフローでは Detected セクションのみが表示されます。
+- **非インタラクティブな実行（CI、TTY なし）で複数の CLI を検出** — プロンプトなしですべての検出済み CLI にインストールします。
+- **検出なし** — `claude` にフォールバックし、PATH にエージェントバイナリが見つからなかったという警告を表示します。フックコマンドは引き続き書き込まれるため、CLI をインストールした時点で有効になります。
 
-`policies-config.json` はいつでも直接編集できます。変更は再起動不要で、次のフックイベント時に即座に反映されます。
+`policies-config.json` はいつでも直接編集できます。変更は次のフックイベント時に即座に反映され、再起動は不要です。
 
 ---
 
-## 例：チームデフォルトを含むプロジェクトレベルの設定
+## 例：チームのデフォルト設定を含むプロジェクトレベルの設定
 
 `.failproofai/policies-config.json` をリポジトリにコミットします：
 
@@ -245,4 +245,4 @@ failproofai policies --install --cli claude codex copilot cursor opencode pi gem
 }
 ```
 
-各開発者はチームメンバーに影響を与えることなく、個人用の上書き設定として `.failproofai/policies-config.local.json`（gitignore 対象）を作成できます。
+各開発者はチームメンバーに影響を与えることなく、個人用のオーバーライドとして `.failproofai/policies-config.local.json`（gitignore 対象）を作成できます。

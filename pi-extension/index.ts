@@ -129,6 +129,36 @@ function canonicalizeToolName(piToolName: string | undefined): string | undefine
   return PI_TOOL_MAP[piToolName] ?? piToolName;
 }
 
+/**
+ * Per-tool input-key translation. Pi's Read / Write / Edit tools deliver
+ * `path` (not `file_path`); failproofai's `block-env-files` and
+ * `block-secrets-write` builtins only read `file_path`, so without this map
+ * they silently no-op on Pi. `block-read-outside-cwd` already has a `path`
+ * fallback so it works either way. Pi's Edit tool nests `edits[{oldText,
+ * newText}]` which doesn't translate flatly to Claude's `{old_string,
+ * new_string}` — we only map the top-level `path`; the nested array stays
+ * Pi-shape (no current builtin reads it).
+ *
+ * Keep in sync with PI_TOOL_INPUT_MAP in src/hooks/types.ts.
+ */
+const PI_TOOL_INPUT_MAP: Record<string, Record<string, string>> = {
+  Read: { path: "file_path" },
+  Write: { path: "file_path" },
+  Edit: { path: "file_path" },
+};
+
+function canonicalizeToolInput(
+  canonicalToolName: string | undefined,
+  args: Record<string, unknown> | undefined,
+): Record<string, unknown> | undefined {
+  if (!args || typeof args !== "object" || !canonicalToolName) return args;
+  const map = PI_TOOL_INPUT_MAP[canonicalToolName];
+  if (!map) return args;
+  const out: Record<string, unknown> = {};
+  for (const k of Object.keys(args)) out[map[k] ?? k] = args[k];
+  return out;
+}
+
 /** Resolve the cwd for the policy payload. Pi events don't include cwd, so
  *  fall back to the extension's process.cwd() — which is where Pi was
  *  launched and where `.failproofai/` config lives. */
@@ -201,6 +231,24 @@ function discoverPiSessionId(cwd: string): string | undefined {
  *  across multiple workspace roots) can't cross-attribute. Cleared on
  *  session_shutdown reasons `new`/`resume`/`fork` (Pi reuses the process). */
 const cachedSessionIdByCwd = new Map<string, string>();
+
+/** Pending Stop-policy deny reason from agent_end, keyed by sessionId.
+ *  Drained by before_agent_start on the next user turn in the same Pi
+ *  process. Cleared on every session_shutdown.
+ *
+ *  Why this exists: Pi's agent_end has no Result type — the agent loop
+ *  has already exited when it fires, so a deny return cannot keep Pi
+ *  running the way Claude's exit-2-from-Stop does. The closest analog
+ *  is to capture the deny here and re-inject it as a MANDATORY ACTION
+ *  system-prompt addition on the NEXT before_agent_start, which fires
+ *  after the user submits a prompt but before the agent loop runs.
+ *  Best-effort: bounded by the Pi process lifetime — same bound Claude
+ *  has on exit-2-from-Stop (kill the agent and the gate is missed).
+ *
+ *  Why per-session not per-cwd: a Pi process can host multiple sessions
+ *  via /resume and /fork; per-cwd would cross-attribute a stale block
+ *  from a prior session into a fresh one. */
+const pendingStopBlockBySession = new Map<string, string>();
 function resolveSessionId(eventSessionId: string | undefined, cwd: string): string | undefined {
   if (eventSessionId) {
     cachedSessionIdByCwd.set(cwd, eventSessionId);
@@ -272,6 +320,17 @@ interface PiAgentEndEvent {
   sessionId?: string;
 }
 
+/** Pi v0.73.x before_agent_start event payload. Fires once per turn,
+ *  after the user submits a prompt but before the agent loop runs. */
+interface PiBeforeAgentStartEvent {
+  type?: string;
+  prompt?: string;
+  /** The fully assembled system prompt for this turn — we append to it. */
+  systemPrompt?: string;
+  cwd?: string;
+  sessionId?: string;
+}
+
 interface PiExtensionApi {
   on(event: string, handler: (event: unknown) => unknown): void;
 }
@@ -280,9 +339,10 @@ export default function failproofaiBridge(pi: PiExtensionApi) {
   // tool_call → PreToolUse. Block tool execution when failproofai denies.
   pi.on("tool_call", (event: unknown): unknown => {
     const e = event as PiToolCallEvent;
+    const canonicalTool = canonicalizeToolName(e.toolName);
     const decision = callPolicy("tool_call", {
-      tool_name: canonicalizeToolName(e.toolName),
-      tool_input: e.input,
+      tool_name: canonicalTool,
+      tool_input: canonicalizeToolInput(canonicalTool, e.input),
       session_id: resolveSessionId(e.sessionId, resolveCwd(e.cwd)),
       cwd: resolveCwd(e.cwd),
       hook_event_name: "PreToolUse",
@@ -341,9 +401,10 @@ export default function failproofaiBridge(pi: PiExtensionApi) {
   // the activity store + stderr — but Pi keeps the original tool result.
   pi.on("tool_result", (event: unknown): unknown => {
     const e = event as PiToolResultEvent;
+    const canonicalTool = canonicalizeToolName(e.toolName);
     callPolicy("tool_result", {
-      tool_name: canonicalizeToolName(e.toolName),
-      tool_input: e.input ?? {},
+      tool_name: canonicalTool,
+      tool_input: canonicalizeToolInput(canonicalTool, e.input) ?? {},
       tool_response: { content: e.content, isError: e.isError },
       session_id: resolveSessionId(e.sessionId, resolveCwd(e.cwd)),
       cwd: resolveCwd(e.cwd),
@@ -352,19 +413,49 @@ export default function failproofaiBridge(pi: PiExtensionApi) {
     return undefined;
   });
 
-  // agent_end → Stop. Observation-only on Pi: the agent loop has already
-  // exited when this fires, so a deny decision cannot keep Pi running the
-  // way Claude's exit-2-from-Stop can. We still forward so the 5
-  // require-*-before-stop builtins run and log their findings (visible in
-  // the dashboard's activity feed and stderr) — best-effort visibility.
+  // agent_end → Stop. Pi cannot veto agent_end (the agent loop has already
+  // exited when this fires — see the AgentEndEvent typedef in pi-coding-agent
+  // which has NO Result type). Instead we capture any deny reason and stash
+  // it keyed by sessionId for the next before_agent_start handler to drain.
+  // The 5 require-*-before-stop builtins thus enforce by gating the NEXT
+  // user turn's system prompt rather than by retrying the same loop. If the
+  // user kills Pi between turns, the gate is missed — same bound Claude has.
   pi.on("agent_end", (event: unknown): unknown => {
     const e = event as PiAgentEndEvent;
-    callPolicy("agent_end", {
-      session_id: resolveSessionId(e.sessionId, resolveCwd(e.cwd)),
-      cwd: resolveCwd(e.cwd),
+    const cwd = resolveCwd(e.cwd);
+    const sessionId = resolveSessionId(e.sessionId, cwd);
+    const decision = callPolicy("agent_end", {
+      session_id: sessionId,
+      cwd,
       hook_event_name: "Stop",
     });
+    if (decision.block && decision.reason && sessionId) {
+      pendingStopBlockBySession.set(sessionId, decision.reason);
+      debug(`agent_end deny stored for session=${sessionId}`);
+    }
     return undefined;
+  });
+
+  // before_agent_start → drain any pending Stop-policy deny captured at
+  // agent_end. This is Pi's only first-class channel to influence the next
+  // turn before the LLM call: the result type accepts a `systemPrompt`
+  // replacement (chained across extensions) and an optional injected
+  // CustomMessage. We only return systemPrompt — sufficient for the LLM to
+  // see the MANDATORY ACTION directive immediately, and avoids polluting the
+  // visible conversation history with framework chrome. The reason text
+  // already carries the policy-attributed MANDATORY ACTION wording from
+  // policy-evaluator's Pi-Stop branch.
+  pi.on("before_agent_start", (event: unknown): unknown => {
+    const e = event as PiBeforeAgentStartEvent;
+    const cwd = resolveCwd(e.cwd);
+    const sessionId = resolveSessionId(e.sessionId, cwd);
+    if (!sessionId) return undefined;
+    const pending = pendingStopBlockBySession.get(sessionId);
+    if (!pending) return undefined;
+    pendingStopBlockBySession.delete(sessionId);
+    debug(`before_agent_start drains stop-block for session=${sessionId}`);
+    const base = e.systemPrompt ?? "";
+    return { systemPrompt: `${base}\n\n${pending}` };
   });
 
   // session_shutdown → SessionEnd. Observation-only; emits a SessionEnd
@@ -382,9 +473,19 @@ export default function failproofaiBridge(pi: PiExtensionApi) {
       reason: e.reason,
       hook_event_name: "SessionEnd",
     });
+    // Capture sessionId BEFORE the cache reset so we delete the pending
+    // entry under the just-ending session's id. After resetSessionIdCache,
+    // a subsequent resolveSessionId would re-discover from disk and could
+    // bind to a different (stale) file — wrong key for the cleanup below.
+    const sessionId = resolveSessionId(e.sessionId, cwd);
     if (e.reason === "new" || e.reason === "resume" || e.reason === "fork") {
       resetSessionIdCache(cwd);
     }
+    // Drop any pending Stop-policy deny for this session on every shutdown
+    // reason — `quit` ends the session for good (don't leak the entry into
+    // GC); `new`/`resume`/`fork` start a different session in the same
+    // process and must not inherit the prior session's gate.
+    if (sessionId) pendingStopBlockBySession.delete(sessionId);
     return undefined;
   });
 }
